@@ -10,7 +10,7 @@ from tqdm.notebook import tqdm
 class SwanDataset(Dataset):
     SPLIT_RANDOM_SEED = 1
     TEST_SIZE = 0.25
-    PATHES = ['klikun/images', 'разметка_малый/images/team-swan/data/разметка_шипун/images', 'разметка_малый/images']
+    PATHES = ['klikun/images', 'разметка_шипун/images', 'разметка_малый/images']
     LABELS = [0, 1, 2]
 
     def __init__(self, data_folder: str, load_to_ram=False, train=True, transform=None):
@@ -19,13 +19,14 @@ class SwanDataset(Dataset):
         # dataloader parameters
         self.data_folder = Path(data_folder)
         assert self.data_folder.exists() and self.data_folder.name == 'data'
-        self.load_to_ram = load_to_ram  # TODO: USE IT TO NOT TO LOAD TO RAM ALL IMAGES
+        self.load_to_ram = load_to_ram
         self.train = train
         self.transform = transform
 
         # images and labels
         self.labels = []
         self.images = []
+        self.files = []
 
         # iterate over labels and fill images and labels
         for path, label in zip(self.PATHES, self.LABELS):
@@ -33,8 +34,14 @@ class SwanDataset(Dataset):
             # split each class uniformly with TEST_SIZE
             new_train_files, new_test_files = train_test_split(new_files_all, random_state=self.SPLIT_RANDOM_SEED + label, test_size=self.TEST_SIZE, shuffle=True)
             new_files_dataset = new_train_files if self.train else new_test_files
+            new_files_dataset = [Path(path) / file for file in new_files_dataset]
             self.labels += [label] * len(new_files_dataset)
-            self.images += self._load_images(self.data_folder / path, new_files_dataset)
+            if self.load_to_ram:
+                # load images
+                self.images += self._load_images(self.data_folder, new_files_dataset)
+            else:
+                # save filenames to load images later
+                self.files += new_files_dataset
 
     def _load_images(self, path: Path, files: list[str]):
         images = []
@@ -45,11 +52,16 @@ class SwanDataset(Dataset):
         return images
 
     def __len__(self):
-        return len(self.images)
+        return max(len(self.images), len(self.files))
 
     def __getitem__(self, item):
-        # get image and label
-        image = self.images[item]
+        if self.load_to_ram:
+            # get image from memory
+            image = self.images[item]
+        else:
+            # load image
+            filename = self.files[item]
+            image = Image.open(self.data_folder / filename).convert('RGB')
         label = self.labels[item]
 
         # apply transform
@@ -59,10 +71,10 @@ class SwanDataset(Dataset):
         return image, label
 
 
-def get_dataloaders(data_folder: str, batch_size=64, train_transform=None, test_transform=None) -> tuple[DataLoader, DataLoader]:
+def get_dataloaders(data_folder: str, batch_size=64, load_to_ram=False, train_transform=None, test_transform=None) -> tuple[DataLoader, DataLoader]:
     # load datasets
-    train_set = SwanDataset(data_folder, train=True, transform=train_transform)
-    test_set = SwanDataset(data_folder, train=False, transform=test_transform)
+    train_set = SwanDataset(data_folder, train=True, load_to_ram=load_to_ram, transform=train_transform)
+    test_set = SwanDataset(data_folder, train=False, load_to_ram=load_to_ram, transform=test_transform)
 
     # make dataloaders
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
