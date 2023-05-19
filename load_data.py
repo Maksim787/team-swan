@@ -32,8 +32,8 @@ def load_data():
     dataset.append([])
     dataset.append([])
     classes = 0
-    for i in ['/data/разметка_кликун/klikun/images', '/home/maxim/Documents/team-swan/data/разметка_шипун/images', '/home/maxim/Documents/team-swan/data/разметка_малый/images']:
-        goose1 = load_from_file('/data/разметка_кликун/klikun/images')
+    for i in ['/data/разметка_кликун/klikun/images', '/data/разметка_малый/images/team-swan/data/разметка_шипун/images', '/data/разметка_малый/images']:
+        goose1 = load_from_file(i)
         dataset[0].append(goose1)
         dataset[1].append([classes]*len(goose1))
         classes += 1
