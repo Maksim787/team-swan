@@ -48,6 +48,9 @@ class SwanDataset(Dataset):
         for filename in tqdm(files):
             # load image
             image = Image.open(path / filename).convert('RGB')
+            # apply transform
+            if self.transform is not None:
+                image = self.transform(image)
             images += [image]
         return images
 
@@ -62,12 +65,10 @@ class SwanDataset(Dataset):
             # load image
             filename = self.files[item]
             image = Image.open(self.data_folder / filename).convert('RGB')
+            # apply transform
+            if self.transform is not None:
+                image = self.transform(image)
         label = self.labels[item]
-
-        # apply transform
-        if self.transform is not None:
-            image = self.transform(image)
-
         return image, label
 
 
