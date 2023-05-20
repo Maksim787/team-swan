@@ -67,7 +67,7 @@ class LeNet128(nn.Module):
         )
 
     def forward(self, x):
-        # x: B x 1 x TARGET_SIZE x TARGET_SIZE
+        # x: B x 1 x INPUT_SIZE x INPUT_SIZE
         out = self.encoder(x)
         # out: B x 120 x 1 x 1
         out = out.squeeze(-1).squeeze(-1)
@@ -75,3 +75,11 @@ class LeNet128(nn.Module):
         out = self.head(out)
         # out: B x 10
         return out
+
+
+def get_lenet(input_size: int):
+    if input_size == 32:
+        return LeNet32()
+    if input_size == 128:
+        return LeNet128()
+    assert False, 'Unreachable'
