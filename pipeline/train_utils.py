@@ -9,12 +9,8 @@ from timeit import default_timer as timer
 from IPython.display import clear_output
 from tqdm.notebook import tqdm
 
-############################################################
-# Global constants
-############################################################
-
-N_CLASSES = 3
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+from constants import N_CLASSES, device
+from criterions import SCORE_MATRIX
 
 ############################################################
 # Confusion matrices
@@ -26,16 +22,24 @@ def get_confusion_matrix(predicted_labels, true_labels):
     return pd.DataFrame(error_matrix, index=[f'true_{i}' for i in range(N_CLASSES)], columns=[f'pred_{i}' for i in range(N_CLASSES)])
 
 
-def plot_confusion_matrix(matrix: pd.DataFrame):
+def get_score_matrix(error_matrix: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame(SCORE_MATRIX * error_matrix.values, index=error_matrix.index, columns=error_matrix.columns)
+
+
+def get_score(error_matrix: pd.DataFrame) -> float:
+    return get_score_matrix(error_matrix).sum().sum()
+
+
+def plot_confusion_matrix(matrix: pd.DataFrame, use_pct: bool = True):
     FONT_SIZE = 15
-    ax = sns.heatmap(matrix, annot=True, fmt=".1%", cmap="Blues", cbar=False, square=True)
+    ax = sns.heatmap(matrix, annot=True, fmt=('.1%' if use_pct else '.2f'), cmap='Blues', cbar=False, square=True)
     ax.set_xlabel('Predicted', fontsize=FONT_SIZE)
     ax.set_ylabel('True', fontsize=FONT_SIZE)
     ax.xaxis.set_label_position('top')
     ax.xaxis.tick_top()
     ax.xaxis.set_tick_params(labeltop=True)  # Set the x-axis labels on top
     ax.yaxis.set_ticklabels(list(range(N_CLASSES)))
-    ax.xaxis.set_ticklabels(list(range(N_CLASSES)), ha="center")
+    ax.xaxis.set_ticklabels(list(range(N_CLASSES)), ha='center')
 
 
 def get_accuracy_by_classes(matrices: list[pd.DataFrame]) -> list[list[float]]:
@@ -124,11 +128,13 @@ def val_loop(model, criterion, val_loader) -> tuple:
 ############################################################
 
 
-def plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies, confusion_matrices_train, confusion_matrices_val):
+def plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies, train_scores, val_scores, confusion_matrices_train, confusion_matrices_val):
     clear_output()
-    assert len(train_losses) == len(val_losses) == len(train_accuracies) == len(val_accuracies)
+    assert len(train_losses) == len(val_losses) == len(train_accuracies) == len(val_accuracies) == len(lrs) == len(train_scores) == len(val_scores)
 
     print(f'Train accuracy: {train_accuracies[-1]:.1%}. Val accuracy: {val_accuracies[-1]:.1%}')
+    print(f'Train score: {train_scores[-1]:.2f}. Val score: {val_scores[-1]:.2f}')
+    print(f'Train loss: {train_losses[-1]:.2f}. Val loss: {val_losses[-1]:.2f}')
 
     # plot losses
     fig, axs = plt.subplots(1, 2, figsize=(13, 4))
@@ -138,27 +144,35 @@ def plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies
     axs[0].set_ylabel('loss')
     axs[0].set_title('Loss')
 
-    axs[1].plot(range(1, len(train_accuracies) + 1), train_accuracies, label='train')
-    axs[1].plot(range(1, len(val_accuracies) + 1), val_accuracies, label='val')
+    axs[1].plot(x_epochs, train_accuracies, label='train')
+    axs[1].plot(x_epochs, val_accuracies, label='val')
     axs[1].set_ylabel('accuracy')
     axs[1].set_title('Accuracy')
 
     for ax in axs:
         ax.set_xlabel('epoch')
-        ax.legend()
+        ax.legend(loc='upper left')
     plt.show()
 
-    # plot lr
-    plt.plot(x_epochs, lrs)
-    plt.title('LR')
-    plt.ylabel('lr')
-    plt.xlabel('epoch')
+    # plot scores and lr
+    fig, axs = plt.subplots(1, 2, figsize=(13, 4))
+    axs[0].axhline(0.0, color='black', linestyle='dashed')
+    axs[0].plot(x_epochs, train_scores, label='train')
+    axs[0].plot(x_epochs, val_scores, label='val')
+    axs[0].set_ylabel('score')
+    axs[0].set_title('Score')
+    axs[0].legend(loc='upper left')
+
+    axs[1].plot(x_epochs, lrs)
+    axs[1].set_ylabel('lr')
+    axs[1].set_title('LR')
+
     plt.show()
 
     # plot accuracy for each class
     fig, axs = plt.subplots(1, 2, figsize=(13, 4))
-    for i, (train_val_label, confusion_matrices) in enumerate(zip(['Train', 'Val'], [confusion_matrices_train, confusion_matrices_val])):
-        axs[i].set_title(train_val_label)
+    for i, (title, confusion_matrices) in enumerate(zip(['Train', 'Val'], [confusion_matrices_train, confusion_matrices_val])):
+        axs[i].set_title(title)
         accuracies_by_classes = get_accuracy_by_classes(confusion_matrices)
         for j in range(N_CLASSES):
             axs[i].plot(x_epochs, accuracies_by_classes[j], label=f'{j} class')
@@ -168,40 +182,52 @@ def plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies
     plt.show()
 
     # plot confusion matrices
-    FONT_SIZE = 15
-    plt.subplots(1, 2, figsize=(13, 5))
-    plt.subplot(1, 2, 1)
-    plt.title('Confusion matrix train', fontsize=FONT_SIZE)
-    plot_confusion_matrix(confusion_matrices_train[-1])
-    plt.subplot(1, 2, 2)
-    plt.title('Confusion matrix val',  fontsize=FONT_SIZE)
-    plot_confusion_matrix(confusion_matrices_val[-1])
-    plt.show()
+    for title, compute_score in zip(['Confusion matrix', 'Score matrix'], [False, True]):
+        matrices = [get_score_matrix(matrix) if compute_score else matrix for matrix in [confusion_matrices_train[-1], confusion_matrices_val[-1]]]
+        FONT_SIZE = 20
+        plt.subplots(1, 2, figsize=(13, 5))
 
+        plt.subplot(1, 2, 1)
+        plt.title(f'{title} train', fontsize=FONT_SIZE)
+        plot_confusion_matrix(matrices[0], use_pct=not compute_score)
+
+        plt.subplot(1, 2, 2)
+        plt.title(f'{title} val',  fontsize=FONT_SIZE)
+        plot_confusion_matrix(matrices[1], use_pct=not compute_score)
+
+        plt.show()
 
 ############################################################
 # Train Model
 ############################################################
 
+
 def train_nn(model, optimizer, criterion, scheduler, train_loader, val_loader, n_epochs: int, log_wandb: bool):
     train_losses, train_accuracies, val_losses, val_accuracies = [], [], [], []
     confusion_matrices_train, confusion_matrices_val = [], []
+    train_scores, val_scores = [], []
     lrs = []
 
     for epoch in range(1, n_epochs + 1):
         # Train
         start_time = timer()
         train_loss, train_accuracy, confusion_matrix_train = train_loop(model, optimizer, criterion, train_loader)
-        confusion_matrices_train.append(confusion_matrix_train)
         train_time = timer() - start_time
+
+        confusion_matrices_train.append(confusion_matrix_train)
+        train_scores.append(get_score(confusion_matrix_train))
+
         train_losses += [train_loss]
         train_accuracies += [train_accuracy]
 
         # Validation
         start_time = timer()
         val_loss, val_accuracy, confusion_matrix_val = val_loop(model, criterion, val_loader)
-        confusion_matrices_val.append(confusion_matrix_val)
         val_time = timer() - start_time
+
+        confusion_matrices_val.append(confusion_matrix_val)
+        val_scores.append(get_score(confusion_matrix_val))
+
         val_losses += [val_loss]
         val_accuracies += [val_accuracy]
 
@@ -225,12 +251,23 @@ def train_nn(model, optimizer, criterion, scheduler, train_loader, val_loader, n
             wandb.log(record)
 
         # Plot
-        plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies, confusion_matrices_train, confusion_matrices_val)
+        plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies, train_scores, val_scores, confusion_matrices_train, confusion_matrices_val)
     if log_wandb:
         wandb.finish()
 
 
+def main():
+    matrix = get_confusion_matrix(np.array([0, 1, 2, 1, 0, 2, 0, 1, 2, 0]), np.array([0, 1, 2, 1, 0, 1, 2, 0, 2, 0]))
+    plot_confusion_matrix(matrix)
+    print('Accuracies:')
+    print(get_accuracy_by_classes([matrix]))
+    print('\nConfusion matrix:')
+    print(matrix)
+    print('\nScore matrix:')
+    print(get_score_matrix(matrix))
+    print('\nScore:')
+    print(get_score(matrix))
+
+
 if __name__ == '__main__':
-    tmp = get_confusion_matrix(np.array([0, 1, 2, 1, 0, 2, 0, 1, 2, 0]), np.array([0, 1, 2, 1, 0, 1, 2, 0, 2, 0]))
-    plot_confusion_matrix(tmp)
-    print(get_accuracy_by_classes([tmp]))
+    main()

@@ -1,6 +1,6 @@
 from torch import nn
 
-from train_utils import N_CLASSES
+from constants import N_CLASSES
 
 ############################################################
 # LeNet32 and LeNet128
