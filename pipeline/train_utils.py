@@ -251,6 +251,7 @@ def train_nn(model, optimizer, criterion, scheduler, train_loader, val_loader, n
             wandb.log(record)
 
         # Plot
+        print(f'Train time: {train_time}. Val time: {val_time}')
         plot_results(lrs, train_losses, val_losses, train_accuracies, val_accuracies, train_scores, val_scores, confusion_matrices_train, confusion_matrices_val)
     if log_wandb:
         wandb.finish()
