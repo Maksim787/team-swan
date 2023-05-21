@@ -10,7 +10,7 @@ from tqdm.notebook import tqdm
 class SwanDataset(Dataset):
     SPLIT_RANDOM_SEED = 1
     TEST_SIZE = 0.25
-    PATHES = ['разметка_шипун/images', 'klikun/images',  'разметка_малый/images']
+    PATHES = ['разметка_малый/images', 'klikun/images', 'разметка_шипун/images']
     LABELS = [0, 1, 2]
 
     def __init__(self, data_folder: str, load_to_ram=False, train=True, transform=None, transform_name: str | None = None):

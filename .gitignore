@@ -2,5 +2,9 @@
 __pycache__
 tmp/
 data/
+test_data/
+figures/
+results/
+result.csv
 tmp.py
 tmp.ipynb
