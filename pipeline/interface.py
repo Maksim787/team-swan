@@ -2,6 +2,7 @@ import torch
 from pathlib import Path
 from torch import nn
 import PIL
+import torch.nn.functional as F
 from dataset_utils import get_dataloader
 from model_utils import save_model, load_model
 from train_utils_user import train, get_device
@@ -78,6 +79,7 @@ def inference_neural_network(model: nn.Module, images_paths: list[Path]) -> tupl
     Результат — номер класса в списке classes_paths, на которых была обучена нейронная сеть
     """
     predicted_labels = []
+    predicted_probs = []
     total_images = []
     device = get_device()
 
@@ -88,8 +90,7 @@ def inference_neural_network(model: nn.Module, images_paths: list[Path]) -> tupl
         images = images.to(device)
         output = model(images)
         predicted_labels.append(output.argmax(dim=1).cpu())
+        predicted_probs.append(F.softmax(output).max(dim=1))
         total_images.extend(images)
-        break
 
-    return torch.concat(predicted_labels), total_images
-
+    return torch.concat(predicted_labels), torch.concat(predicted_probs)
