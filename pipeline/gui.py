@@ -39,6 +39,7 @@ pd_table.pack(fill='both', expand=True)
 def process_image(model, image_path):
     # Вместо этой функции нужно подставить вызов вашей нейросети
     # и получение результатов (названия классов и количество объектов)
+    print(f'Process image: {image_path}')
 
     classes = ['малый', 'кликун', 'шипун']
     labels, probs = inference_neural_network(model, images_paths=[image_path])
@@ -83,7 +84,9 @@ def process_folder(folder_path):
     total_images = len(image_files)
     processed_images = 0
 
+    print('Load NN')
     model = load_neural_network(num_classes=3, from_path=Path('pipeline/models/'), model_name='swan')
+    print('NN loaded')
 
     for image_file in image_files:
         threading.Thread(target=update_table, args=(model, image_file)).start()

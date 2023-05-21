@@ -21,7 +21,7 @@ class Expand:
 
 class DefaultDataset(Dataset):
 
-    def __init__(self, classes_paths: list[Path]):
+    def __init__(self, classes_paths: list[Path], is_test: bool):
         super().__init__()
 
         self.transform = T.Compose([T.ToTensor(), Expand(), T.Resize((128, 128))])
@@ -29,11 +29,15 @@ class DefaultDataset(Dataset):
         self.images = []
         self.files = []
 
-        for i in range(len(classes_paths)):
-            files = sorted(os.listdir(classes_paths[i]))
-            file_paths = [classes_paths[i] / file for file in files]
-            self.labels += [i] * len(file_paths)
-            self.files += file_paths
+        if not is_test:
+            for i in range(len(classes_paths)):
+                files = sorted(os.listdir(classes_paths[i]))
+                file_paths = [classes_paths[i] / file for file in files]
+                self.labels += [i] * len(file_paths)
+                self.files += file_paths
+        else:
+            self.labels = [-1]
+            self.files = [classes_paths[0]]
 
     def __len__(self):
         return max(len(self.images), len(self.files))
@@ -45,5 +49,5 @@ class DefaultDataset(Dataset):
         return image, label
 
 
-def get_dataloader(class_paths: list[Path], batch_size=64) -> DataLoader:
-    return DataLoader(DefaultDataset(class_paths), batch_size=batch_size, shuffle=False)
+def get_dataloader(class_paths: list[Path], batch_size=64, is_test: bool = True) -> DataLoader:
+    return DataLoader(DefaultDataset(class_paths, is_test=is_test), batch_size=batch_size, shuffle=False)
